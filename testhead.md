@@ -100,3 +100,83 @@ info: "How to create your own Theme for Vuepress"
 我们传入的资源路径`sourceDir`被`prepare`方法加工后得到了`option`,我们再看下`prepare `方法的定义:
 
 位于`lib/prepare.js`路径下
+
+
+```javascript
+	module.exports = async function prepare (sourceDir) {
+  // 1. load options
+  const options = await resolveOptions(sourceDir)
+
+  // 2. generate routes & user components registration code
+  const routesCode = await genRoutesFile(options)
+  const componentCode = await genComponentRegistrationFile(options)
+
+  await writeTemp('routes.js', [
+    componentCode,
+    routesCode
+  ].join('\n\n'))
+  // 3. generate siteData
+  const dataCode = `export const siteData = ${JSON.stringify(options.siteData, null, 2)}`
+  await writeTemp('siteData.js', dataCode)
+
+  // 4. generate basic polyfill if need to support older browsers
+  let polyfillCode = ``
+  if (!options.siteConfig.evergreen) {
+    polyfillCode =
+`import 'es6-promise/auto'
+if (!Object.assign) Object.assign = require('object-assign')`
+  }
+  await writeTemp('polyfill.js', polyfillCode)
+  // 5. handle user override
+  const overridePath = path.resolve(sourceDir, '.vuepress/override.styl')
+  const hasUserOverride = options.useDefaultTheme && fs.existsSync(overridePath)
+  await writeTemp(`override.styl`, hasUserOverride ? `@import(${JSON.stringify(overridePath)})` : ``)
+
+  // 6. handle enhanceApp.js
+  const enhanceAppPath = path.resolve(sourceDir, '.vuepress/enhanceApp.js')
+  await writeEnhanceTemp('enhanceApp.js', enhanceAppPath)
+
+  // 7. handle the theme enhanceApp.js
+  await writeEnhanceTemp('themeEnhanceApp.js', options.themeEnhanceAppPath)
+
+  return options
+}
+```
+
+其实这个方法,对于我们有定制主题需求的人来说,是很重要的,这个方法读取了我们传入的`SourceDir`下的多个配置文件.
+
+并且根据将我们的不同配置分别写入到不同的文件中.最后把这些配置综合到`option `这个对象里面,返回到webpack的覆盖方法.
+
+#### 传入的值经过了怎么样的处理?
+
+这个`applyUserWebpackConfig`方法看名字其实我们就已经明白了是什么含义.但是我们仍旧可以看一下他的定义[位于 `./util/index,.js`]中.
+
+![](http://ww1.sinaimg.cn/large/88b26e1cgy1fr7exhxxdmj20rc0aw0ui.jpg)
+
+这个方法用来把我们传入的配置与原有的webpack配置合并了.也就是说,我们可以在这里覆盖原有的配置.
+
+#### 我们所拿到的值是什么?
+
+在这里,我们所拿到的`options.siteConfig.configureWebpack`实际上是我们在`config.js`里面配置的`configureWebpack`这个属性,例如:
+
+![](http://ww1.sinaimg.cn/large/88b26e1cgy1fr7exq1uvwj20mq0fcmz7.jpg)
+
+那这样配置之后,webpack在打包我们整个的项目的过程中,就会根据我们自定义的配置来打包.
+
+举个例子:根据我们上图的配置,在项目中写的`@pub`这样的字符,webpack在打包时会自动到`./public`路径下去找对应的文件.
+
+所以现在你在markdown文件中可以这样写:
+
+```JavaScript
+  ![我的头像](@pub/face.jpg)
+```
+
+而这段代码会被正确解析为
+
+```JavaScript
+  ![我的头像](~/public/face.jpg)
+```
+
+而它的实际目录其实是:
+
+![](http://ww1.sinaimg.cn/large/88b26e1cgy1fr8pzgn8h7j208g06zq3b.jpg)
