@@ -180,3 +180,71 @@ if (!Object.assign) Object.assign = require('object-assign')`
 而它的实际目录其实是:
 
 ![](http://ww1.sinaimg.cn/large/88b26e1cgy1fr8pzgn8h7j208g06zq3b.jpg)
+
+
+## 如何定义我们自己的流程
+
+在打开整个项目的时候,整个网站的布局和交互细节实际上是在一个名为`doc`的目录下.
+
+自定义,意味着额外新建一个目录来存放我们的自定义文件,以及我们的`config.js`.把我们的配置文件和我们的markdown源文件分开存放.
+
+怎么样实现呢?如果直接新建一个`src`文件夹,然后直接剪切`doc`下的`.vuepress`文件夹到`src`目录下,重新打包编译整个项目.
+
+我们会发现原有的组件样式失效了.而`config.js`里面的配置也都失效了.
+
+其实这里很简单,只需要我们对package.json进行一些修改:
+
+### `package.json`里面关于`script`的配置
+
+```json
+	"scripts": {
+    "dev": "node bin/vuepress dev doc",
+    "build": "node bin/vuepress build doc",
+    "lint": "eslint bin lib test",
+    "start": "yarn dev && start http://localhost:8080"
+  }
+```
+
+这个配置的意思也就是说,我们在终端里输入指令
+
+```bash
+	npm run dev
+```
+
+终端会将其转换为
+
+```
+	node bin/vuepress dev doc
+```
+简单的替换,很好理解,但是这个指令代表的是什么意思呢?
+
+在这里nodeJs会做这样一件事,进入到`bin`目录下执行名字为`vuepress`的这个文件.那我们继续深究一下,这个`vuepress`文件又做了什么呢?
+
+因为这个文件很长,所以我们截取一些重要的片段来看
+
+![](http://ww1.sinaimg.cn/large/88b26e1cgy1fr8ykffqc0j20sj092wgl.jpg)
+
+箭头这里执行了一个指令`dev [targetDir] `而我们在package.json传入的就是`dev doc`所以这里实际上我们传入的`doc`就是目标文件夹.
+
+所以合起来就是,执行`~/lib/dev.js`并且传入的参数是`doc`,那我们继续走到`dev.js`里面,看看`dev.js`里面用我们传入的参数做了什么:
+
+![](http://ww1.sinaimg.cn/large/88b26e1cgy1fr8ykuywxij20ud0k0wl4.jpg)
+
+我们得到两个关键信息:
+
+* `dev.js`接收参数并且作为`sourceDir`
+* `sourceDir` 被对应的`prepare`解析为`option`对象,并且这个`option`对象被用来配置我们的整个站点(如下图)
+
+![](http://ww1.sinaimg.cn/large/88b26e1cgy1fr8yl0aia9j20ww08wac1.jpg)
+
+这也是为什么我们在`.vuepress`在官方API规定的文件中配置不同的信息,就能让我们的网站得到不同的效果的原因.
+
+### `doc`用来干嘛呢?你可能会有这样的问题
+
+`doc`将作为渲染前的markdown文档存放的目录,这项配置同样可以在`config.js`中找到:
+
+![](http://ww1.sinaimg.cn/large/88b26e1cgy1fr8ytbl23sj20si07et9z.jpg)
+
+# 结语
+
+其实这篇教程没有涉及关于如何编写一个vuepress主题的内容,但是通过这样的配置,你已经可以自由发挥来设计你自己的主题了.如果对于这些有任何疑问,欢迎邮件交流~
